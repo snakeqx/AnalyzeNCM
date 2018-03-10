@@ -1,9 +1,13 @@
 from pandas import Timestamp
 
-Time_Today = Timestamp.now()
-Time_Today = Timestamp("2018-02-05 00:00:00")
-Time_Month = 2018.02
 
+Time_Today = Timestamp.now()    # 用于设定周统计中前一周的末尾，默认使用运行程序的日期
+# 如果需要指定日期，使用下面代码
+# Time_Today = Timestamp("2018-02-05 00:00:00")
+
+Time_Month = 2018.02            # 用于设定月统计中的最后一月，向前递减
+
+# 用于设定需要分析哪些系统
 Product_Types = [
     # "P15A",
     # "P15G",
@@ -33,7 +37,7 @@ Product_Types = [
 ]
 
 # ["IQC", "ASS", "DMS", "SI", "TCO", "DOA", "FOR", "R&D", "WH", "FRU"]
-# 注意顺序，列表中的最上面对应图中的柱子最下面
+# 用于分析流程统计，注意顺序，列表中的最上面对应图中的柱子最下面
 Target_Processes = [
     "IQC",
     "WH",
@@ -45,6 +49,7 @@ Target_Processes = [
     "DOA"
 ]
 
+# 用于月统计
 Monthly_Process_To_Analyze = [
     # "IQC",
     # "WH",

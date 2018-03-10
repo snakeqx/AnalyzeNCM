@@ -1,13 +1,20 @@
 import numpy as np
 import pandas as pd
-import datetime
 from matplotlib import pyplot as plt
 import config as cfg
 from Header import NcmHeader as HD
 
 
 class Ncm:
+    """
+    此类用于初始化excel文件，增加新列，并提供分析函数可供调用。
+    """
+
     def __init__(self, filename=r'./data/test.xlsx'):
+        """
+        初始化excel文件。已知bug：无法支持老式的xls文件。只支持xlsx文件。
+        :param filename: 输入excel文件路径
+        """
         self.Is_Init_Done = False
         self.Is_Analyze_Done = False
         self.File_Name = filename
@@ -20,6 +27,8 @@ class Ncm:
                 print(self.Process_Name)
                 return
         try:
+            # TODO()
+            # 如何支持老式的excel文件格式？
             self.Data_Frame = pd.read_excel(self.File_Name,
                                             sheet_name="test",  # 强制设置为名称为test的表
                                             header=2,  # 默认excel会有两行空行
@@ -58,7 +67,7 @@ class Ncm:
                 process.append(self.Process_Name[7])  # R&D
             elif _i[4] == '8':
                 process.append(self.Process_Name[8])  # WH
-            elif -i[4] == 'B':
+            elif _i[4] == 'B':
                 process.append(self.Process_Name[9])  # HALO
             else:
                 process.append('OTHER')
@@ -77,7 +86,8 @@ class Ncm:
             if (w - now).days > 0:
                 week.append(self.Week_Name[2])  # Future
                 if future_flag:
-                    print("data has \"Future\" time! Please double check! The analyze result will ignore the future data.")
+                    print("data has \"Future\" time! Please double check! "
+                          "The analyze result will ignore the future data.")
                     future_flag = False  # 设置flag，flag为假时上面一行的报错就不显示了
             elif 0 >= (w - now).days >= -7:
                 week.append(self.Week_Name[1])  # Last Week
@@ -92,39 +102,53 @@ class Ncm:
         self.Is_Analyze_Done = True  # 结束分析，设置标记
 
     def analyze_by_month(self):
+        """
+        分析统计月度NCM分布
+        :return: 月度NCM分布的Data Frame
+        """
         now = cfg.Time_Month
-        total="Total"
-        before="Before"
+        total = "Total"
+        before = "Before"
         # 获取总表数据，并筛除所有不在配置文件中Monthly_Process_To_Analyze列表的流程
         data_frame = self.Data_Frame[self.Data_Frame[HD.Process_Name].isin(cfg.Monthly_Process_To_Analyze)]
         # 创建数据透视表
-        ppidf=pd.pivot_table(data_frame, index=[HD.Material_Name], columns=data_frame[HD.Find_Month], values=[HD.Quantity], aggfunc=np.sum, fill_value=0)
-        ppidf=ppidf.Qty  # 只摘取Qty的子表格，否则表格结构复杂，不易后续处理
-        
+        pivot_dataframe = pd.pivot_table(data_frame,
+                                         index=[HD.Material_Name],
+                                         columns=data_frame[HD.Find_Month],
+                                         values=[HD.Quantity],
+                                         aggfunc=np.sum,
+                                         fill_value=0
+                                         )
+        pivot_dataframe = pivot_dataframe.Qty  # 只摘取Qty的子表格，否则表格结构复杂，不易后续处理
+
         # 摘除月份大于配置文件中设置的数据
         remove_list = []
-        for _m in ppidf.columns:
+        for _m in pivot_dataframe.columns:
             if _m > now:
                 remove_list.append(_m)
         for _m in remove_list:
-            del ppidf[_m]
-            
+            del pivot_dataframe[_m]
+
         # 另外创建一个temp的data frame用来计算除去最后一个月数量之外的总合
-        temp = ppidf.copy()
+        temp = pivot_dataframe.copy()
         del temp[now]
         temp[total] = temp.apply(lambda x: x.sum(), axis=1)
-        
+
         # 创建一个table的data frame， 用于返回最终需要的结果
         table = pd.DataFrame(index=temp.index)  # 先初始化部件名，从temp中的index拷贝
-        table[before]=temp[total]               # temp的total就是目标表格中的before
-        table[now]=ppidf[now]                   # 配置文件中的月份就是now
-        table[total] = table.apply(lambda x: x.sum(), axis=1)       # 计算总合用于排序
+        table[before] = temp[total]  # temp的total就是目标表格中的before
+        table[now] = pivot_dataframe[now]  # 配置文件中的月份就是now
+        table[total] = table.apply(lambda x: x.sum(), axis=1)  # 计算总合用于排序
         table.sort_values(by=total, ascending=False, inplace=True)  # 排序
-        table = table[(table[total] >= 3) | (table[now] != 0)]      # 摘除综合小于等于3或者当月没有NCM的数据
-        del table[total]                                            # 总合排序后不再需要，删除
+        table = table[(table[total] >= 3) | (table[now] != 0)]  # 摘除综合小于等于3或者当月没有NCM的数据
+        del table[total]  # 总合排序后不再需要，删除
         return table
 
     def analyze_by_process(self):
+        """
+        按流程分析统计每月NCM情况
+        :return: 按流程分析统计NCM的Data Frame
+        """
         table = pd.pivot_table(self.Data_Frame,
                                index=[HD.Find_Month],
                                values=[HD.Quantity],
@@ -133,13 +157,17 @@ class Ncm:
                                fill_value=0
                                )
         table = table[HD.Quantity]  # 只摘取Qty的子表格，否则表格结构复杂，不易后续处理
-        for p in table:             # 删除不是目标流程的项目
+        for p in table:  # 删除不是目标流程的项目
             if p not in cfg.Target_Processes:
                 del table[p]
-        table = table.reindex(columns=cfg.Target_Processes) # 列重新排序，按照config中的Target_Process顺序
+        table = table.reindex(columns=cfg.Target_Processes)  # 列重新排序，按照config中的Target_Process顺序
         return table
 
     def analyze_by_week(self):
+        """
+        按周统计NCM分布情况
+        :return: 周统计NCM分布情况的Data Frame
+        """
         total = "Total"
         table = pd.pivot_table(self.Data_Frame,
                                index=[HD.Material_Name],
@@ -153,6 +181,7 @@ class Ncm:
             del table[self.Week_Name[2]]  # future的数据会被删除
         except Exception as e:
             print("There is no \"Future\" data, nothing to be deleted.")
+            print(str(e))
         table[total] = table.apply(lambda x: x.sum(), axis=1)
         table.sort_values(by=total, ascending=False, inplace=True)
         table = table[(table[total] >= 3) | (table[self.Week_Name[1]] != 0)]
@@ -160,7 +189,10 @@ class Ncm:
         return table
 
     def save_analyze_results(self):
-        #  
+        """
+        将分析过程和分析结果的数据保存excel
+        :return: 只出现在错误的情况下
+        """
         if not self.Is_Analyze_Done:
             print("Data analyze is not finished. Something is wrong")
             return
@@ -175,11 +207,15 @@ class Ncm:
             print(str(e))
 
     def save_analyze_plot(self):
+        """
+        将分析结果画图保存
+        :return: 只出现在错误的情况下
+        """
         if not self.Is_Analyze_Done:
             print("Data analyze is not finished. Something is wrong")
             return
         try:
-            plt.rcParams.update({'figure.autolayout': True})
+            plt.rcParams.update({'figure.autolayout': True})  # 自动设置layout，防止标题被遮挡
             ax = self.Analyze_Process_Result.plot(kind='bar', stacked=True, figsize=cfg.Figure_Size)
             fig = ax.get_figure()
             fig.savefig('Z0-process.png')
@@ -189,7 +225,7 @@ class Ncm:
             fig2 = bx.get_figure()
             fig2.savefig('Z1-Weekly.png')
             fig2.clear()
-            
+
             cx = self.Analyze_Month_Result.plot(kind='bar', stacked=True, figsize=cfg.Figure_Size)
             fig3 = cx.get_figure()
             fig3.savefig('Z3-Monthly.png')
@@ -197,4 +233,3 @@ class Ncm:
         except Exception as e:
             print(str(e))
             return
-

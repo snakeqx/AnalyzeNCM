@@ -1,4 +1,8 @@
 class NcmHeader:
+    """
+    用于初始化表头。
+    表头的字符串用变量代替，保证在整个项目中，表头都是统一的
+    """
     Material_Status = "Mat.S."
     Ncm_No = "NCM No."
     Find_Date = "Fdate."
@@ -10,7 +14,7 @@ class NcmHeader:
     Material_Name = "Material Name"
     Week = "Week"
 
-
+# NCM中全部表头如下
 # Mat.S.
 # NCM No.
 # Fdate.
